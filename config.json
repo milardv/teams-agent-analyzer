@@ -1,0 +1,34 @@
+{
+  "tenantId": "10ac92ed-06ba-4584-87f3-22e6154f683d",
+  "pollIntervalMinutes": 2,
+  "autoAnalyzeNewQuestions": true,
+  "showDemoWhenEmpty": true,
+  "repositories": {
+    "coach": "/home/valm/IdeaProjects/phishing-coach",
+    "academy": "/home/valm/IdeaProjects/academy"
+  },
+  "sources": [
+    {
+      "id": "chat-coach-academy-1",
+      "type": "chat",
+      "label": "Cyber Coach - PM - Success",
+      "chatId": "19:678b4b03b7c3434d99a9e45937aceda4@thread.v2",
+      "url": "https://teams.cloud.microsoft/l/chat/19:678b4b03b7c3434d99a9e45937aceda4@thread.v2/conversations?context=%7B%22contextType%22%3A%22chat%22%7D"
+    },
+    {
+      "id": "chat-coach-academy-2",
+      "type": "chat",
+      "label": "Cyber Academy - PM - Success",
+      "chatId": "19:ea0209dda77445e0b50d9c70236f9e92@thread.v2",
+      "url": "https://teams.cloud.microsoft/l/chat/19:ea0209dda77445e0b50d9c70236f9e92@thread.v2/conversations?context=%7B%22contextType%22%3A%22chat%22%7D"
+    },
+    {
+      "id": "taskforce-coach-aca",
+      "type": "channel",
+      "label": "Taskforce Coach-Aca",
+      "teamId": "ebcfc21b-248c-4190-b0e7-cdffe0423c4c",
+      "channelId": "19:jvTOhKB88gequbgQIutXDQQWAPn78HEOmmettLQ632s1@thread.tacv2",
+      "url": "https://teams.cloud.microsoft/l/channel/19%3AjvTOhKB88gequbgQIutXDQQWAPn78HEOmmettLQ632s1%40thread.tacv2/Taskforce%20Coach-Aca?groupId=ebcfc21b-248c-4190-b0e7-cdffe0423c4c&tenantId=10ac92ed-06ba-4584-87f3-22e6154f683d&ngc=true&allowXTenantAccess=true"
+    }
+  ]
+}

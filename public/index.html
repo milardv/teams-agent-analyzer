@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Tableau local de triage Teams pour Coach et Academy">
+    <title>Reply Board</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">R</div>
+          <div><strong>Reply Board</strong><span>Coach · Academy</span></div>
+        </div>
+
+        <nav class="filters" aria-label="Filtres des messages">
+          <button class="filter active" data-filter="todo"><span>À traiter</span><b id="count-todo">0</b></button>
+          <button class="filter" data-filter="coach"><span>Coach</span><b id="count-coach">0</b></button>
+          <button class="filter" data-filter="academy"><span>Academy</span><b id="count-academy">0</b></button>
+          <button class="filter" data-filter="all"><span>Tous les messages</span><b id="count-all">0</b></button>
+          <button class="filter" data-filter="treated"><span>Traités</span><b id="count-treated">0</b></button>
+          <button class="filter" data-filter="archived"><span>Archivés</span><b id="count-archived">0</b></button>
+        </nav>
+
+        <div class="sidebar-footer">
+          <div class="connection" id="connection-card">
+            <span class="status-dot"></span>
+            <div><strong id="connection-title">Microsoft Teams</strong><span id="connection-detail">Non connecté</span></div>
+          </div>
+          <button class="button secondary full" id="connect-button">Connecter Teams</button>
+          <p class="storage-note">Messages et traitements sauvegardés sur ce PC · notifications Ubuntu</p>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Boîte de réception</p>
+            <h1 id="view-title">À traiter</h1>
+          </div>
+          <div class="top-actions">
+            <span class="sync-label" id="sync-label">Jamais synchronisé</span>
+            <button class="button secondary" id="mark-category-button">Tout traiter</button>
+            <button class="button secondary" id="sync-button">↻ Synchroniser</button>
+          </div>
+        </header>
+
+        <div class="notice demo-notice" id="demo-notice" hidden>
+          <strong>Aperçu avec données fictives</strong>
+          <span>Connectez Teams pour remplacer ces exemples par les vrais messages.</span>
+        </div>
+
+        <div class="notice error-notice" id="error-notice" hidden></div>
+
+        <section class="board">
+          <div class="message-list" id="message-list" aria-live="polite"></div>
+          <article class="detail empty" id="detail-panel">
+            <div class="empty-state">
+              <div class="empty-icon" aria-hidden="true">↗</div>
+              <h2>Sélectionnez un message</h2>
+              <p>La question, les preuves trouvées dans le code et la réponse proposée apparaîtront ici.</p>
+            </div>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="auth-dialog">
+      <form method="dialog" class="dialog-card">
+        <button class="dialog-close" aria-label="Fermer">×</button>
+        <p class="eyebrow">Connexion sécurisée</p>
+        <h2>Connecter Microsoft Teams</h2>
+        <div id="auth-content"></div>
+      </form>
+    </dialog>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

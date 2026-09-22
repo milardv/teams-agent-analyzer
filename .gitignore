@@ -1,0 +1,4 @@
+data/
+.env
+.sites-runtime/
+npm-debug.log*
