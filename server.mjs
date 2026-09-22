@@ -9,6 +9,7 @@ import {
 } from './lib/graph.mjs';
 import { mergeMessages, readJson, writeJson } from './lib/store.mjs';
 import { fetchBrowserSourceMessages, getTeamsBrowserStatus, startTeamsBrowser } from './lib/teams-browser.mjs';
+import { browserMessageDate, classifyMessage } from './lib/text.mjs';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const PUBLIC = join(ROOT, 'public');
@@ -20,6 +21,39 @@ const PORT = Number(process.env.PORT || 4317);
 const CLIENT_ID = process.env.TEAMS_BOARD_CLIENT_ID || '';
 const config = await readJson(CONFIG_PATH, {});
 const codexBin = process.env.CODEX_BIN || 'codex';
+
+const selfAuthors = config.selfAuthors || [];
+
+function isSelfAuthor(author) {
+  return selfAuthors.includes(author);
+}
+
+/** Browser messages once stored the sync time as date: rebuild it from the epoch identifier. */
+function repairDate(message) {
+  if (message.graphId || message.isDemo) return message.createdAt;
+  return browserMessageDate({ id: message.id.split(':').pop(), createdAt: message.createdAt }) || message.createdAt;
+}
+
+function enrichMessage(message) {
+  const classification = classifyMessage(`${message.subject || ''}\n${message.content || ''}`);
+  const createdAt = repairDate(message);
+  return {
+    ...message,
+    createdAt,
+    updatedAt: message.updatedAt && message.updatedAt >= createdAt ? message.updatedAt : createdAt,
+    needsReply: Boolean(message.needsReply) && !isSelfAuthor(message.author),
+    threadId: message.threadId || message.id,
+    groupId: message.groupId || `${message.sourceId}:thread:${message.threadId || message.id}`,
+    project: message.project && message.project !== 'unknown' ? message.project : classification.project,
+    confidence: Math.max(message.confidence || 0, classification.confidence || 0),
+    supportType: classification.supportType !== 'inconnu'
+      ? classification.supportType : (message.supportType || classification.supportType),
+    criticality: classification.supportType === 'bug'
+      ? classification.criticality : (message.criticality ?? classification.criticality),
+    businessTags: message.businessTags?.length ? message.businessTags : classification.businessTags
+  };
+}
+
 let state = await readJson(STATE_PATH, {
   messages: [],
   firstSyncComplete: false,
@@ -27,11 +61,14 @@ let state = await readJson(STATE_PATH, {
   lastSyncError: null,
   sourceErrors: {}
 });
-const beforeSeparatorCleanup = state.messages.length;
-state.messages = state.messages.filter((message) => !(
-  message.graphId === null && /^[^:]+:::[^:]+:\d+$/.test(message.id)
-));
-if (state.messages.length !== beforeSeparatorCleanup) await writeJson(STATE_PATH, state);
+{
+  const before = JSON.stringify(state.messages);
+  state.messages = state.messages
+    .filter((message) => !(message.graphId === null && /^[^:]+:::[^:]+:\d+$/.test(message.id)))
+    .map(enrichMessage)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  if (JSON.stringify(state.messages) !== before) await writeJson(STATE_PATH, state);
+}
 let auth = await readJson(AUTH_PATH, null);
 if (!auth?.accessToken && !auth?.refreshToken) auth = null;
 let deviceFlow = null;
@@ -64,10 +101,19 @@ const demoMessages = [
     content: 'La livraison de la branche de recette est terminée.',
     needsReply: false, project: 'unknown', confidence: 0, status: 'new', answer: '', evidence: [], isDemo: true
   }
-];
+].map(enrichMessage);
+
+let codexCheck = { checkedAt: 0, available: false, version: '' };
+
+function checkCodex() {
+  if (Date.now() - codexCheck.checkedAt < 60_000) return codexCheck;
+  const result = spawnSync(codexBin, ['--version'], { encoding: 'utf8', timeout: 3000 });
+  codexCheck = { checkedAt: Date.now(), available: result.status === 0, version: (result.stdout || '').trim().split('\n')[0] };
+  return codexCheck;
+}
 
 function publicStatus() {
-  const codexCheck = spawnSync(codexBin, ['--version'], { encoding: 'utf8', timeout: 3000 });
+  const codex = checkCodex();
   return {
     connected: Boolean(auth?.refreshToken || (auth?.accessToken && auth.expiresAt > Date.now()) || browser.loggedIn),
     connectionMode: auth ? 'graph' : browser.loggedIn ? 'browser' : null,
@@ -81,12 +127,13 @@ function publicStatus() {
       status: deviceFlow.status,
       error: deviceFlow.error
     },
-    codexAvailable: codexCheck.status === 0,
-    codexVersion: (codexCheck.stdout || '').trim(),
+    codexAvailable: codex.available,
+    codexVersion: codex.version,
+    selfAuthors,
     lastSyncAt: state.lastSyncAt,
     lastSyncError: state.lastSyncError,
     sourceErrors: state.sourceErrors,
-    sources: config.sources || [],
+    sources: (config.sources || []).map(({ id, label, type, url }) => ({ id, label, type, url })),
     pollIntervalMinutes: config.pollIntervalMinutes || 2,
     repositories: config.repositories,
     demo: !state.messages.length && Boolean(config.showDemoWhenEmpty)
@@ -144,7 +191,7 @@ async function syncMessages() {
       try {
         incoming.push(...(token
           ? await fetchSourceMessages({ ...source }, token)
-          : await fetchBrowserSourceMessages(source)));
+          : await fetchBrowserSourceMessages({ ...source, selfAuthors })));
       } catch (error) {
         sourceErrors[source.id] = summarizeGraphError(error);
       }
@@ -161,20 +208,19 @@ async function syncMessages() {
       })),
       firstSyncComplete: true,
       lastSyncAt: new Date().toISOString(),
-      lastSyncError: Object.keys(sourceErrors).length === config.sources.length
+      lastSyncError: Object.keys(sourceErrors).length === (config.sources || []).length
         ? 'Aucune source Teams n’a pu être lue.'
         : null,
       sourceErrors
     };
     await saveState();
-    if (!firstSync && previousSyncAt) {
-      const lastSyncTimestamp = Date.parse(previousSyncAt);
-      for (const message of merged.inserted) {
-        if (Date.parse(message.createdAt) > lastSyncTimestamp) notifyDesktop(message);
+    const fresh = merged.inserted.filter((message) => !isSelfAuthor(message.author)
+      && (!previousSyncAt || Date.parse(message.createdAt) > Date.parse(previousSyncAt)));
+    if (!firstSync) {
+      for (const message of fresh) notifyDesktop(message);
+      if (config.autoAnalyzeNewQuestions) {
+        for (const message of fresh.filter((item) => item.needsReply)) enqueueAnalysis(message.id);
       }
-    }
-    if (!firstSync && config.autoAnalyzeNewQuestions) {
-      for (const message of merged.inserted.filter((item) => item.needsReply)) enqueueAnalysis(message.id);
     }
     return { imported: merged.inserted.length, sourceErrors };
   })().catch(async (error) => {
@@ -187,8 +233,11 @@ async function syncMessages() {
 
 function conversationContext(target) {
   return state.messages
-    .filter((message) => message.sourceId === target.sourceId && message.id !== target.id)
+    .filter((message) => message.id !== target.id && (target.groupId
+      ? message.groupId === target.groupId
+      : message.sourceId === target.sourceId))
     .filter((message) => message.createdAt <= target.createdAt)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, 6)
     .reverse()
     .map((message) => `[${message.author}] ${message.content}`)
@@ -236,6 +285,43 @@ async function runQueue() {
   }
 }
 
+function dayKey(date) {
+  return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
+}
+
+function daysAgo(offset) {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() - offset);
+  return date;
+}
+
+function computeStats() {
+  const treated = state.messages
+    .filter((message) => message.status === 'treated' && message.processedAt)
+    .map((message) => dayKey(new Date(message.processedAt)));
+  const perDay = new Map();
+  for (const key of treated) perDay.set(key, (perDay.get(key) || 0) + 1);
+  let streak = 0;
+  for (let offset = 0; offset < 365; offset += 1) {
+    if (perDay.has(dayKey(daysAgo(offset)))) streak += 1;
+    else if (offset > 0) break;
+  }
+  const week = Array.from({ length: 7 }, (_, index) => {
+    const day = dayKey(daysAgo(6 - index));
+    return { day, treated: perDay.get(day) || 0 };
+  });
+  const open = state.messages.filter((message) => message.needsReply && !['treated', 'archived'].includes(message.status));
+  return {
+    treatedTotal: treated.length,
+    treatedToday: perDay.get(dayKey(new Date())) || 0,
+    streak,
+    week,
+    openQuestions: open.length,
+    oldestOpen: open.map((message) => message.createdAt).sort()[0] || null
+  };
+}
+
 function json(response, status, payload) {
   response.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
   response.end(JSON.stringify(payload));
@@ -277,6 +363,9 @@ const server = createServer(async (request, response) => {
     if (request.method === 'GET' && url.pathname === '/api/status') {
       browser = await getTeamsBrowserStatus();
       return json(response, 200, publicStatus());
+    }
+    if (request.method === 'GET' && url.pathname === '/api/stats') {
+      return json(response, 200, computeStats());
     }
     if (request.method === 'GET' && url.pathname === '/api/messages') {
       const messages = state.messages.length ? state.messages : (config.showDemoWhenEmpty ? demoMessages : []);
@@ -328,7 +417,10 @@ const server = createServer(async (request, response) => {
     if (request.method === 'POST' && url.pathname === '/api/messages/mark-treated') {
       const payload = await bodyJson(request);
       const category = ['todo', 'coach', 'academy', 'all'].includes(payload.category) ? payload.category : 'all';
+      const groupId = typeof payload.groupId === 'string' ? payload.groupId : null;
+      const targetStatus = ['new', 'treated'].includes(payload.status) ? payload.status : 'treated';
       const selected = state.messages.filter((message) => {
+        if (groupId) return message.groupId === groupId;
         if (message.status === 'archived' || message.status === 'treated') return false;
         if (category === 'todo') return message.needsReply;
         if (category === 'coach' || category === 'academy') return message.project === category;
@@ -336,8 +428,9 @@ const server = createServer(async (request, response) => {
       });
       const now = new Date().toISOString();
       for (const message of selected) {
-        message.status = 'treated';
-        message.processedAt = now;
+        Object.assign(message, enrichMessage(message));
+        message.status = targetStatus;
+        message.processedAt = targetStatus === 'treated' ? now : null;
       }
       await saveState();
       return json(response, 200, { treated: selected.length });
@@ -361,6 +454,7 @@ const server = createServer(async (request, response) => {
       if (!message) return json(response, 404, { error: 'Message introuvable.' });
       const payload = await bodyJson(request);
       if (['new', 'ready', 'archived', 'treated'].includes(payload.status)) {
+        if (payload.status === 'treated') Object.assign(message, enrichMessage(message));
         message.status = payload.status;
         message.processedAt = payload.status === 'treated' ? new Date().toISOString() : null;
       }

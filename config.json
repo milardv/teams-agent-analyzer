@@ -3,6 +3,7 @@
   "pollIntervalMinutes": 2,
   "autoAnalyzeNewQuestions": true,
   "showDemoWhenEmpty": true,
+  "selfAuthors": ["Valentin Milard"],
   "repositories": {
     "coach": "/home/valm/IdeaProjects/phishing-coach",
     "academy": "/home/valm/IdeaProjects/academy"

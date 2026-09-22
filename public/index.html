@@ -25,6 +25,8 @@
           <button class="filter" data-filter="archived"><span>Archivés</span><b id="count-archived">0</b></button>
         </nav>
 
+        <button class="quest-card" id="quest-card" type="button" title="Cliquer pour changer l’objectif du jour" aria-label="Quête du jour"></button>
+
         <div class="sidebar-footer">
           <div class="connection" id="connection-card">
             <span class="status-dot"></span>
@@ -42,9 +44,15 @@
             <h1 id="view-title">À traiter</h1>
           </div>
           <div class="top-actions">
+            <label class="search" aria-label="Rechercher">
+              <span aria-hidden="true">🔎</span>
+              <input id="search-input" type="search" placeholder="Rechercher… ( / )" autocomplete="off">
+            </label>
+            <button class="button secondary" id="sort-button" title="Changer le tri">⭐ Taskforce d’abord</button>
             <span class="sync-label" id="sync-label">Jamais synchronisé</span>
             <button class="button secondary" id="mark-category-button">Tout traiter</button>
             <button class="button secondary" id="sync-button">↻ Synchroniser</button>
+            <button class="button secondary icon" id="help-button" title="Raccourcis clavier (?)" aria-label="Raccourcis clavier">?</button>
           </div>
         </header>
 
@@ -77,6 +85,26 @@
       </form>
     </dialog>
 
+    <dialog id="help-dialog">
+      <form method="dialog" class="dialog-card">
+        <button class="dialog-close" aria-label="Fermer">×</button>
+        <p class="eyebrow">Clavier</p>
+        <h2>Raccourcis</h2>
+        <dl class="shortcuts">
+          <dt><kbd>j</kbd> / <kbd>k</kbd></dt><dd>Flux suivant / précédent</dd>
+          <dt><kbd>t</kbd></dt><dd>Marquer le flux traité (ou rouvrir)</dd>
+          <dt><kbd>a</kbd></dt><dd>Lancer l’analyse Codex</dd>
+          <dt><kbd>c</kbd></dt><dd>Copier la réponse</dd>
+          <dt><kbd>o</kbd></dt><dd>Ouvrir dans Teams</dd>
+          <dt><kbd>s</kbd></dt><dd>Synchroniser</dd>
+          <dt><kbd>/</kbd></dt><dd>Rechercher</dd>
+          <dt><kbd>1</kbd>…<kbd>6</kbd></dt><dd>Changer de vue</dd>
+          <dt><kbd>Échap</kbd></dt><dd>Désélectionner / quitter le champ</dd>
+        </dl>
+      </form>
+    </dialog>
+
+    <canvas id="confetti" aria-hidden="true"></canvas>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <script type="module" src="/app.js"></script>
   </body>
